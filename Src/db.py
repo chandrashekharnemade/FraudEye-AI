@@ -1,4 +1,3 @@
-
 import os
 from pathlib import Path
 
@@ -6,15 +5,25 @@ import psycopg
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env", override=True)
+
+# Local .env use karo, lekin existing environment variables overwrite mat karo.
+load_dotenv(ROOT / ".env", override=False)
 
 
 def get_connection():
     database_url = os.getenv("DATABASE_URL")
 
+    # Streamlit Cloud Secrets se URL read karo.
+    if not database_url:
+        try:
+            import streamlit as st
+            database_url = st.secrets.get("DATABASE_URL")
+        except Exception:
+            database_url = None
+
     if not database_url:
         raise RuntimeError(
-            "DATABASE_URL missing. Check the project .env file."
+            "DATABASE_URL missing. Configure it in Streamlit Secrets."
         )
 
     return psycopg.connect(database_url)
