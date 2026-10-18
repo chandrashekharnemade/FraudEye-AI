@@ -9,3 +9,4 @@ psycopg[binary]
 streamlit-autorefresh
 openpyxl
 xlrd
+bcrypt
