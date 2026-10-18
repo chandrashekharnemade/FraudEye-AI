@@ -1,0 +1,9 @@
+﻿.env
+**/.env
+.venv/
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+Data/Raw/creditcard.csv
+Src/app_backup.py
+Src/app copy.py

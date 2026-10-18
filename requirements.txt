@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+plotly
+scikit-learn
+joblib
+python-dotenv
+psycopg[binary]
+streamlit-autorefresh
+openpyxl
+xlrd
