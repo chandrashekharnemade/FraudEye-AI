@@ -430,11 +430,16 @@ threshold = (
 def load_dataset(path):
     return pd.read_csv(path)
 
-
 try:
-    df = load_dataset(str(DATA)) if DATA.exists() else None
-except Exception:
+    if DATA.exists():
+        df = load_dataset(str(DATA))
+        st.sidebar.success(f"Dataset loaded: {df.shape}")
+    else:
+        df = None
+        st.sidebar.warning(f"Dataset not found: {DATA}")
+except Exception as e:
     df = None
+    st.sidebar.error(f"Dataset error: {type(e).__name__}: {e}")
 
 # Fallback: use saved dataset summary when the full CSV
 # is not available on Streamlit Cloud.
@@ -456,6 +461,8 @@ colors = {
 
 
 # ==========================================================
+#
+# ==========================================================
 # PAGE 1: OVERVIEW
 # ==========================================================
 if page == "Overview":
@@ -472,49 +479,31 @@ if page == "Overview":
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.write("DEBUG - Dataset loaded:", df is not None)
-if df is not None:
-    st.write("DEBUG - Dataset shape:", df.shape)
-    st.write("DEBUG - Dataset columns:", df.columns.tolist())
-    
-    if df is not None and "Class" in df.columns:
-        total = len(df)
-        fraud = int((df["Class"] == 1).sum())
-        legit = total - fraud
-        rate = fraud / total * 100 if total else 0
-    else:
-        total = fraud = legit = rate = 0
 
+    # Dashboard summary metrics
+    a, b, c, d = st.columns(4)
+    a.metric("Dataset Transactions", "284,807")
+    b.metric("Dataset Fraud Cases", "492")
+    c.metric("Fraud Rate", "0.173%")
+
+    # Calculate API latency from saved simulator logs
     if (
         live_df is not None
         and not live_df.empty
-        and "prediction" in live_df.columns
+        and "latency_ms" in live_df.columns
     ):
-        live_total = len(live_df)
-        live_fraud = int(
-            (
-                live_df["prediction"]
-                .astype(str)
-                .str.lower() == "fraud"
-            ).sum()
-        )
         lat = pd.to_numeric(
-            live_df.get("latency_ms", pd.Series(dtype=float)),
-            errors="coerce",
+            live_df["latency_ms"], errors="coerce"
         ).dropna()
         avg_lat = lat.mean() if not lat.empty else None
     else:
-        live_total = live_fraud = 0
         avg_lat = None
 
-    a, b, c, d = st.columns(4)
-    a.metric("Dataset Transactions", f"{total:,}" if total else "â€”")
-    b.metric("Dataset Fraud Cases", f"{fraud:,}" if total else "â€”")
-    c.metric("Fraud Rate", f"{rate:.3f}%" if total else "â€”")
     d.metric(
         "Avg API Latency",
-        f"{avg_lat:.2f} ms" if avg_lat is not None else "Run simulator",
+        f"{avg_lat:.2f} ms"
+        if avg_lat is not None
+        else "No data yet",
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -526,11 +515,23 @@ if df is not None:
             "Transaction class distribution",
             "Historical dataset distribution",
         )
-        if total:
+
+        # Only display chart when the full dataset is available
+        if (
+            df is not None
+            and {"Class"}.issubset(df.columns)
+            and len(df.columns) >= 31
+        ):
+            total = len(df)
+            fraud = int((df["Class"] == 1).sum())
+            legit = total - fraud
+            rate = fraud / total * 100 if total else 0
+
             dist = pd.DataFrame({
                 "Transaction Type": ["Legitimate", "Fraud"],
                 "Count": [legit, fraud],
             })
+
             fig = px.pie(
                 dist,
                 names="Transaction Type",
@@ -545,9 +546,7 @@ if df is not None:
             fig.update_traces(textinfo="percent")
             fig.add_annotation(
                 text=f"{rate:.3f}%<br><sup>fraud rate</sup>",
-                x=.5,
-                y=.5,
-                showarrow=False,
+                x=.5, y=.5, showarrow=False,
                 font=dict(size=17, color="#f0f6ff"),
             )
             st.plotly_chart(
@@ -555,7 +554,9 @@ if df is not None:
                 use_container_width=True,
             )
         else:
-            st.info("Dataset not found: data/raw/creditcard.csv")
+            st.info(
+                "Full historical dataset is unavailable in this deployment."
+            )
 
     with y:
         section(
@@ -586,6 +587,14 @@ if df is not None:
 
     with z:
         section("Simulator activity", "Saved prediction log")
+        if live_df is not None and not live_df.empty:
+            live_total = len(live_df)
+            live_fraud = int(
+                live_df["prediction"].astype(str).str.lower().eq("fraud").sum()
+            ) if "prediction" in live_df.columns else 0
+        else:
+            live_total = live_fraud = 0
+
         st.metric("Transactions logged", f"{live_total:,}")
         st.metric("Fraud alerts in log", f"{live_fraud:,}")
         st.caption("Simulator log, not a live bank feed.")
@@ -603,7 +612,7 @@ if df is not None:
             hide_index=True,
         )
         st.download_button(
-            "â¬‡ Download transaction log",
+            "Download transaction log",
             live_df.to_csv(index=False).encode("utf-8"),
             "fraudeye_live_predictions.csv",
             "text/csv",
