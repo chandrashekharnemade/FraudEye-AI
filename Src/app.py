@@ -436,6 +436,13 @@ try:
 except Exception:
     df = None
 
+# Fallback: use saved dataset summary when the full CSV
+# is not available on Streamlit Cloud.
+if df is None:
+    df = pd.DataFrame({
+        "Class": [0] * 284315 + [1] * 492
+    })
+
 live_df = read_csv_safe(LIVE)
 gnn_df = read_csv_safe(GNN_CSV)
 baseline_df = read_csv_safe(BASELINE_CSV)
@@ -465,7 +472,12 @@ if page == "Overview":
         </div>
     </div>
     """, unsafe_allow_html=True)
-
+    
+    st.write("DEBUG - Dataset loaded:", df is not None)
+if df is not None:
+    st.write("DEBUG - Dataset shape:", df.shape)
+    st.write("DEBUG - Dataset columns:", df.columns.tolist())
+    
     if df is not None and "Class" in df.columns:
         total = len(df)
         fraud = int((df["Class"] == 1).sum())
